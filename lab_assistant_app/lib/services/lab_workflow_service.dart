@@ -4,48 +4,83 @@ class LabWorkflowService {
   List<LabProject> createDemoProjects() {
     final eegV1 = _historyExperiment(
       id: 'exp-eeg-v1',
-      title: 'EEG fatigue pilot v1',
-      goal: '建立脑电疲劳评估的基础刺激流程',
+      title: 'H001 高负荷认知任务协同刺激',
+      goal: '高负荷认知任务下的协同刺激效果评估',
       domain: '神经调控 / 脑电',
       resultLabel: '基线',
       transcriptTexts: const [
-        '完成 6 Hz 基线刺激流程，记录疲劳评分和正确率。',
-        '被试反馈任务负荷可接受，设备信号稳定。',
+        '实施 5 Hz 视听觉协同刺激 20 min。',
+        '记录主观疲劳评分、任务表现和右侧额顶网络功能连接。',
       ],
       evidencePrefix: 'eeg-v1',
-    );
+    ).copyWith(experimentType: '正式实验');
     final eegV2 = _historyExperiment(
       id: 'exp-eeg-v2',
-      title: 'EEG fatigue pilot v2',
-      goal: '验证延长刺激时长是否增强疲劳评分变化',
+      title: 'H002 低频协同刺激参数探索',
+      goal: '低频协同刺激参数探索',
       domain: '神经调控 / 脑电',
       resultLabel: '部分',
-      transcriptTexts: const ['保持 6 Hz，延长刺激时长并记录主观疲劳评分。', '疲劳评分略有下降，正确率变化不明显。'],
-      evidencePrefix: 'eeg-v2',
-    );
-    final eegV3 = createPreviousDemoExperiment().copyWith(
-      id: 'exp-eeg-v3',
-      title: 'EEG fatigue pilot v3',
-      goal: '验证刺激时长是否影响疲劳评分',
-      domain: '神经调控 / 脑电',
-      resultLabel: '部分',
-    );
-    final eegV4 = createCurrentDemoExperiment(
-      title: 'EEG fatigue pilot v4',
-      goal: '验证刺激频率变化是否影响疲劳评分',
-      domain: '神经调控 / 脑电',
-    ).copyWith(id: 'exp-eeg-v4');
-    final eegControl = _historyExperiment(
-      id: 'exp-eeg-control',
-      title: 'EEG fatigue control repeat',
-      goal: '重复 10 Hz 条件并加入 theta 功率记录',
-      domain: '神经调控 / 脑电',
-      resultLabel: '待验证',
       transcriptTexts: const [
-        '保留 10 Hz 条件，增加 theta 功率和阻抗基线截图。',
-        '作为 v4 的重复验证分支，等待更多被试数据。',
+        '采用 3 Hz 视听觉协同刺激 20 min。',
+        '任务正确率和反应时间未稳定改善，主观疲劳评分有下降趋势。',
       ],
-      evidencePrefix: 'eeg-control',
+      evidencePrefix: 'eeg-v2',
+    ).copyWith(experimentType: '预实验');
+    final eegV3 = _historyExperiment(
+      id: 'exp-eeg-v3',
+      title: 'H003 脑电节律变化探索',
+      goal: '协同刺激后的脑电节律变化探索',
+      domain: '神经调控 / 脑电',
+      resultLabel: '部分',
+      transcriptTexts: const [
+        '观察 5 Hz 视听觉协同刺激后额中线 theta 功率。',
+        'theta 功率增强，任务正确率仅轻微变化。',
+      ],
+      evidencePrefix: 'eeg-v3',
+    ).copyWith(experimentType: '预实验');
+    final eegV4 = _historyExperiment(
+      id: 'exp-eeg-v4',
+      title: 'H004 额顶网络连接分析',
+      goal: '额顶网络连接与疲劳状态变化分析',
+      domain: '神经调控 / 脑电',
+      resultLabel: '关联',
+      transcriptTexts: const [
+        '比较 5 Hz 协同刺激前后的右侧额顶网络连接和主观疲劳评分。',
+        '网络连接增强与疲劳评分下降同时出现。',
+      ],
+      evidencePrefix: 'eeg-v4',
+    ).copyWith(experimentType: '探索性分析实验');
+    final eegV5 = _historyExperiment(
+      id: 'exp-eeg-v5',
+      title: 'H005 连续刺激顺序分析',
+      goal: '连续刺激条件下行为与神经指标变化顺序分析',
+      domain: '神经调控 / 脑电',
+      resultLabel: '优化',
+      transcriptTexts: const [
+        '连续进行三次 5 Hz 视听觉协同刺激。',
+        'theta 功率和右侧额顶网络连接先于任务正确率改善出现。',
+      ],
+      evidencePrefix: 'eeg-v5',
+    ).copyWith(experimentType: '重复干预实验');
+    final eegControl = _historyExperiment(
+      id: 'exp-eeg-h006',
+      title: 'H006 Sham 假刺激对照',
+      goal: '假刺激条件下行为与神经指标变化',
+      domain: '神经调控 / 脑电',
+      resultLabel: '对照',
+      transcriptTexts: const [
+        '设置 Sham 假刺激条件，流程与有效刺激一致。',
+        '任务正确率、疲劳评分、theta 功率和右侧额顶网络连接均未稳定变化。',
+      ],
+      evidencePrefix: 'eeg-h006',
+    ).copyWith(experimentType: '对照实验');
+
+    final eegReports = _createImportedEegReports();
+    const eegV3Idea = GeneratedIdea(
+      id: 'eeg-v3',
+      title: 'theta前置线索',
+      body:
+          '当前报告中的 theta 功率增强，与历史现象中疲劳评分下降和右侧额顶网络连接增强形成相似信号。可探索假设是神经节律变化可能先于行为改善出现；下一步可同步记录 theta 功率、额顶网络连接和任务正确率，验证神经指标是否能作为刺激参数优化的早期判据。',
     );
 
     final materialV1 = _historyExperiment(
@@ -73,73 +108,87 @@ class LabWorkflowService {
         title: '脑电疲劳调控项目',
         domain: '神经调控 / 脑电',
         goal: '通过连续实验优化疲劳干预刺激条件',
-        updatedAt: '今天 11:20',
-        defaultNodeId: 'eeg-v4',
+        updatedAt: '2026-05-19 16:00',
+        defaultNodeId: 'eeg-v5',
         historyNodes: [
           ExperimentHistoryNode(
             id: 'eeg-v1',
             parentId: null,
             experiment: eegV1,
-            title: 'v1 基线流程',
-            summary: '建立基础刺激和记录流程',
-            timestamp: '5/20 09:30',
+            title: 'H001 协同刺激效果评估',
+            summary: '5 Hz 协同刺激后额顶网络连接增强，疲劳状态改善',
+            timestamp: '5/10 10:00',
             resultLabel: '基线',
+            versionNumber: 1,
+            report: eegReports['H001'],
+            transcript: eegV1.transcript,
+            evidence: eegV1.evidence,
           ),
           ExperimentHistoryNode(
             id: 'eeg-v2',
             parentId: 'eeg-v1',
             experiment: eegV2,
-            title: 'v2 延长时长',
-            summary: '延长刺激时长，疲劳变化有限',
-            timestamp: '5/21 15:40',
+            title: 'H002 低频参数探索',
+            summary: '3 Hz 条件下行为指标不明显，主观疲劳评分下降',
+            timestamp: '5/12 14:30',
             resultLabel: '部分',
+            versionNumber: 2,
+            report: eegReports['H002'],
+            transcript: eegV2.transcript,
+            evidence: eegV2.evidence,
           ),
           ExperimentHistoryNode(
             id: 'eeg-v3',
             parentId: 'eeg-v2',
             experiment: eegV3,
-            title: 'v3 时长验证',
-            summary: '重复 6 Hz 条件并确认行为指标稳定',
-            timestamp: '昨天 16:10',
+            title: 'H003 脑电节律探索',
+            summary: '5 Hz 后 theta 功率增强，行为改善尚不明确',
+            timestamp: '5/14 09:40',
             resultLabel: '部分',
+            versionNumber: 3,
+            report: eegReports['H003'],
+            transcript: eegV3.transcript,
+            evidence: eegV3.evidence,
+            idea: eegV3Idea,
           ),
           ExperimentHistoryNode(
             id: 'eeg-v4',
             parentId: 'eeg-v3',
             experiment: eegV4,
-            title: 'v4 频率调整',
-            summary: '切换到 10 Hz，疲劳评分下降更明显',
-            timestamp: '今天 10:24',
-            resultLabel: '部分',
+            title: 'H004 网络连接分析',
+            summary: '右侧额顶网络连接增强与疲劳评分下降同时出现',
+            timestamp: '5/16 15:20',
+            resultLabel: '关联',
+            versionNumber: 4,
+            report: eegReports['H004'],
+            transcript: eegV4.transcript,
+            evidence: eegV4.evidence,
           ),
           ExperimentHistoryNode(
-            id: 'eeg-control',
+            id: 'eeg-v5',
             parentId: 'eeg-v4',
-            experiment: eegControl,
-            title: '重复验证分支',
-            summary: '加入 theta 功率记录，准备重复验证',
-            timestamp: '计划中',
-            resultLabel: '待验证',
+            experiment: eegV5,
+            title: 'H005 连续刺激分析',
+            summary: '神经指标变化先于明显行为改善出现',
+            timestamp: '5/18 11:10',
+            resultLabel: '优化',
+            versionNumber: 5,
+            report: eegReports['H005'],
+            transcript: eegV5.transcript,
+            evidence: eegV5.evidence,
           ),
           ExperimentHistoryNode(
-            id: 'eeg-alt',
-            parentId: 'eeg-v2',
-            experiment: _historyExperiment(
-              id: 'exp-eeg-alt',
-              title: 'EEG alpha band exploration',
-              goal: '探索 alpha 频段刺激对注意力的影响',
-              domain: '神经调控 / 脑电',
-              resultLabel: '探索',
-              transcriptTexts: const [
-                '从 v2 分支出来，尝试 alpha 频段刺激。',
-                '初步结果显示注意力指标有变化，需要更多数据。',
-              ],
-              evidencePrefix: 'eeg-alt',
-            ),
-            title: 'alpha 频段探索',
-            summary: '从 v2 分支，探索 alpha 刺激对注意力的影响',
-            timestamp: '5/22 14:00',
-            resultLabel: '探索',
+            id: 'eeg-h006',
+            parentId: 'eeg-v1',
+            experiment: eegControl,
+            title: 'H006 Sham 对照分支',
+            summary: '假刺激条件下未观察到稳定联合变化',
+            timestamp: '5/19 16:00',
+            resultLabel: '对照',
+            versionNumber: 6,
+            report: eegReports['H006'],
+            transcript: eegControl.transcript,
+            evidence: eegControl.evidence,
           ),
         ],
       ),
@@ -159,6 +208,9 @@ class LabWorkflowService {
             summary: '筛选固化温度并确定候选窗口',
             timestamp: '5/22 09:32',
             resultLabel: '可行',
+            versionNumber: 1,
+            transcript: materialV1.transcript,
+            evidence: materialV1.evidence,
           ),
           ExperimentHistoryNode(
             id: 'material-v2',
@@ -168,6 +220,9 @@ class LabWorkflowService {
             summary: '固定温度后比较溶剂比例',
             timestamp: '昨天 18:35',
             resultLabel: '优化',
+            versionNumber: 2,
+            transcript: materialV2.transcript,
+            evidence: materialV2.evidence,
           ),
         ],
       ),
@@ -243,6 +298,186 @@ class LabWorkflowService {
         ),
       ],
     );
+  }
+
+  Map<String, StructuredReport> _createImportedEegReports() {
+    Evidence materialEvidence(String id, String detail, String timestamp) {
+      return Evidence(
+        id: '$id-materials',
+        type: EvidenceType.transcript,
+        title: '实验耗材',
+        detail: detail,
+        timestamp: timestamp,
+        source: 'data.txt',
+      );
+    }
+
+    return {
+      'H001': StructuredReport(
+        title: 'H001 高负荷认知任务下的协同刺激效果评估',
+        body:
+            '一、实验概况\n本次正式实验在高负荷认知任务中实施 5 Hz 视听觉协同刺激，刺激时长 20 min，重点观察主观疲劳评分、任务行为表现和右侧额顶网络功能连接。\n\n二、主要结果\n刺激后右侧额顶网络功能连接出现增强趋势，被试在任务持续阶段表现出更好的疲劳耐受状态。\n\n三、结论\n5 Hz视听觉协同刺激后，右侧额顶网络功能连接增强，并伴随认知疲劳状态改善。该记录可作为后续预实验分析和关联匹配的基础。',
+        purpose: '高负荷认知任务下的协同刺激效果评估',
+        experimentType: '正式实验',
+        plannedConditions: const [
+          '任务类型：高负荷认知任务',
+          '刺激方式：视听觉协同刺激',
+          '刺激频率：5 Hz；刺激时长：20 min',
+          '观测指标：主观疲劳评分、任务行为表现、右侧额顶网络功能连接',
+        ],
+        actualOperations: const [
+          '实施 5 Hz 视听觉协同刺激 20 min',
+          '记录刺激前后的疲劳状态、任务表现和脑网络连接变化',
+        ],
+        conditionChanges: const ['作为基础正式实验记录，用于后续预实验比较'],
+        processObservations: const ['刺激后右侧额顶网络功能连接出现增强趋势', '被试任务持续阶段疲劳耐受状态改善'],
+        resultMetrics: const ['右侧额顶网络功能连接增强', '主观疲劳状态改善'],
+        rawEvidence: [
+          materialEvidence(
+            'h001',
+            '脑电电极贴片 1 套；导电膏 2 mL；酒精棉片 2 片',
+            '2026-05-10 10:00',
+          ),
+        ],
+        nextSuggestions: const ['用后续预实验验证 5 Hz 条件下神经指标与行为表现的关系'],
+      ),
+      'H002': StructuredReport(
+        title: 'H002 低频协同刺激参数探索',
+        body:
+            '一、实验概况\n本次预实验采用 3 Hz 视听觉协同刺激，刺激时长 20 min，用持续注意任务评估低频刺激参数的可行性。\n\n二、主要结果\n任务正确率和反应时间没有出现稳定改善，但部分被试反馈实验后疲劳感下降。\n\n三、结论\n3 Hz 协同刺激对主要行为指标影响不明显，但主观疲劳评分有下降趋势，提示该伴随状态变化仍值得继续追踪。',
+        purpose: '低频协同刺激参数探索',
+        experimentType: '预实验',
+        plannedConditions: const [
+          '任务类型：持续注意任务',
+          '刺激方式：视听觉协同刺激',
+          '刺激频率：3 Hz；刺激时长：20 min',
+          '主要指标：任务正确率、反应时间；伴随指标：主观疲劳评分',
+        ],
+        actualOperations: const [
+          '实施 3 Hz 视听觉协同刺激 20 min',
+          '记录任务完成状态和实验后主观疲劳反馈',
+        ],
+        conditionChanges: const ['相对 H001 将刺激频率从 5 Hz 降至 3 Hz'],
+        processObservations: const ['行为指标未出现稳定改善', '部分被试主观疲劳感下降'],
+        resultMetrics: const ['任务正确率无明显改善', '反应时间无稳定改善', '主观疲劳评分下降趋势'],
+        rawEvidence: [
+          materialEvidence('h002', '脑电电极贴片 1 套；酒精棉片 2 片', '2026-05-12 14:30'),
+        ],
+        nextSuggestions: const ['保留疲劳评分作为后续低频参数探索的伴随观察指标'],
+      ),
+      'H003': StructuredReport(
+        title: 'H003 协同刺激后的脑电节律变化探索',
+        body:
+            '一、实验概况\n本次预实验观察 5 Hz 视听觉协同刺激后的脑电节律变化，重点分析额中线 theta 功率，并同步记录任务正确率和反应时间。\n\n二、主要结果\n刺激后额中线 theta 功率较基线增强，任务正确率仅有轻微变化，尚未形成明确行为改善。\n\n三、结论\n5 Hz 协同刺激后神经信号变化比行为改善更早出现，额中线 theta 功率可作为后续实验的早期评价指标。',
+        purpose: '协同刺激后的脑电节律变化探索',
+        experimentType: '预实验',
+        plannedConditions: const [
+          '任务类型：工作记忆任务',
+          '刺激方式：视听觉协同刺激',
+          '刺激频率：5 Hz；刺激时长：20 min',
+          '脑电分析指标：额中线 theta 功率；行为指标：任务正确率、反应时间',
+        ],
+        actualOperations: const [
+          '实施 5 Hz 视听觉协同刺激 20 min',
+          '比较刺激后额中线 theta 功率和行为指标变化',
+        ],
+        conditionChanges: const ['从低频 3 Hz 参数探索回到 5 Hz 条件，并增加脑电节律分析'],
+        processObservations: const ['额中线 theta 功率较基线增强', '任务正确率仅轻微变化'],
+        resultMetrics: const ['额中线 theta 功率增强', '行为改善尚不明确'],
+        rawEvidence: [
+          materialEvidence(
+            'h003',
+            '脑电电极帽 1 套；导电膏 3 mL；一次性电极贴片 2 片',
+            '2026-05-14 09:40',
+          ),
+        ],
+        nextSuggestions: const ['将 theta 功率与额顶网络连接共同纳入后续分析'],
+      ),
+      'H004': StructuredReport(
+        title: 'H004 额顶网络连接与疲劳状态变化分析',
+        body:
+            '一、实验概况\n本次探索性分析比较 5 Hz 协同刺激前后的右侧额顶网络功能连接和主观疲劳评分。\n\n二、主要结果\n刺激后右侧额顶网络连接强度增加，同时被试报告疲劳程度下降，结果方向与前序抗疲劳观察一致。\n\n三、结论\n右侧额顶网络功能连接增强与主观疲劳评分下降在同一次实验中同时出现，提示二者可能与认知疲劳缓解过程相关，但仍需重复实验验证。',
+        purpose: '额顶网络连接与疲劳状态变化分析',
+        experimentType: '探索性分析实验',
+        plannedConditions: const [
+          '任务类型：持续认知负荷任务',
+          '刺激方式：视听觉协同刺激',
+          '刺激频率：5 Hz；刺激时长：20 min',
+          '观测指标：右侧额顶网络功能连接、主观疲劳评分',
+        ],
+        actualOperations: const ['比较刺激前后脑网络连接变化', '同步记录主观疲劳状态'],
+        conditionChanges: const ['在 5 Hz 条件下加强额顶网络连接分析'],
+        processObservations: const ['右侧额顶网络连接强度增加', '主观疲劳程度下降'],
+        resultMetrics: const ['右侧额顶网络功能连接增强', '主观疲劳评分下降'],
+        rawEvidence: [
+          materialEvidence(
+            'h004',
+            '脑电电极帽 1 套；导电膏 3 mL；酒精棉片 2 片',
+            '2026-05-16 15:20',
+          ),
+        ],
+        nextSuggestions: const ['增加重复实验验证额顶网络连接与疲劳下降的稳定关联'],
+      ),
+      'H005': StructuredReport(
+        title: 'H005 连续刺激条件下行为与神经指标变化顺序分析',
+        body:
+            '一、实验概况\n本实验连续进行三次 5 Hz 视听觉协同刺激，比较第一次和第三次刺激后的行为表现与神经指标变化。\n\n二、主要结果\n第一次刺激后，任务正确率尚未明显提升，但额中线 theta 功率和右侧额顶网络连接已有增强。第三次刺激后，任务正确率提高，主观疲劳评分下降。\n\n三、结论\ntheta 功率增强与右侧额顶网络连接增加先于明显行为改善出现，说明两项神经指标可能具有认知干预早期评价价值。',
+        purpose: '连续刺激条件下行为与神经指标变化顺序分析',
+        experimentType: '重复干预实验',
+        plannedConditions: const [
+          '任务类型：高负荷认知任务',
+          '刺激方式：视听觉协同刺激',
+          '刺激频率：5 Hz；单次刺激时长：20 min；连续干预 3 次',
+          '测量时间点：第一次刺激后、第三次刺激后',
+          '观测指标：任务正确率、主观疲劳评分、额中线 theta 功率、右侧额顶网络功能连接',
+        ],
+        actualOperations: const ['连续进行三次 5 Hz 视听觉协同刺激', '比较第一次和第三次刺激后的行为与神经指标'],
+        conditionChanges: const ['从单次刺激观察扩展为连续三次干预'],
+        processObservations: const ['第一次刺激后神经指标先增强', '第三次刺激后任务正确率提高且疲劳评分下降'],
+        resultMetrics: const [
+          'theta 功率增强',
+          '右侧额顶网络连接增加',
+          '任务正确率提高',
+          '主观疲劳评分下降',
+        ],
+        rawEvidence: [
+          materialEvidence(
+            'h005',
+            '脑电电极帽 1 套；导电膏 6 mL；酒精棉片 6 片',
+            '2026-05-18 11:10',
+          ),
+        ],
+        nextSuggestions: const ['继续验证神经指标是否能预测后续行为改善'],
+      ),
+      'H006': StructuredReport(
+        title: 'H006 假刺激条件下行为与神经指标变化',
+        body:
+            '一、实验概况\n本次实验设置 Sham假刺激 对照条件，流程与有效刺激条件保持一致，观测任务正确率、主观疲劳评分、额中线 theta 功率和右侧额顶网络功能连接。\n\n二、主要结果\n假刺激条件下，各项行为与神经指标均未呈现稳定变化。\n\n三、结论\nSham假刺激 未观察到疲劳下降、theta 功率增强和右侧额顶网络连接增加的稳定联合变化，可作为有效刺激实验的对照记录。',
+        purpose: '假刺激条件下行为与神经指标变化',
+        experimentType: '对照实验',
+        plannedConditions: const [
+          '任务类型：高负荷认知任务',
+          '刺激方式：Sham 假刺激；刺激时长：20 min',
+          '观测指标：任务正确率、主观疲劳评分、额中线 theta 功率、右侧额顶网络功能连接',
+        ],
+        actualOperations: const ['执行 Sham 假刺激对照流程', '按有效刺激实验相同指标记录行为和神经变化'],
+        conditionChanges: const ['将有效 5 Hz 协同刺激替换为 Sham 假刺激'],
+        processObservations: const ['任务正确率未稳定变化', '疲劳评分、theta 功率和额顶网络连接均未稳定变化'],
+        resultMetrics: const [
+          '未观察到稳定疲劳下降',
+          '未观察到 theta 功率增强',
+          '未观察到右侧额顶网络连接增加',
+        ],
+        rawEvidence: [
+          materialEvidence(
+            'h006',
+            '脑电电极帽 1 套；导电膏 3 mL；酒精棉片 2 片',
+            '2026-05-19 16:00',
+          ),
+        ],
+        nextSuggestions: const ['作为后续有效刺激关联分析的对照分支'],
+      ),
+    };
   }
 
   Experiment createPreviousDemoExperiment() {

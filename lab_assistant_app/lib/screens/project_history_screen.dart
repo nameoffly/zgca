@@ -12,8 +12,6 @@ class ProjectHistoryScreen extends StatefulWidget {
 }
 
 class _ProjectHistoryScreenState extends State<ProjectHistoryScreen> {
-  String? _openedProjectId;
-
   @override
   void initState() {
     super.initState();
@@ -30,20 +28,21 @@ class _ProjectHistoryScreenState extends State<ProjectHistoryScreen> {
 
   void _openProject(LabProject project) {
     appState.selectProject(project.id);
-    setState(() => _openedProjectId = project.id);
-  }
-
-  void _closeProject() {
-    setState(() => _openedProjectId = null);
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => const Scaffold(
+          backgroundColor: AppColors.bg,
+          body: ExperimentDetailScreen(),
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return SafeArea(
       key: const ValueKey('project-history-screen'),
-      child: _openedProjectId == null
-          ? _ProjectList(onOpenProject: _openProject)
-          : _ProjectHistoryDetail(onBack: _closeProject),
+      child: _ProjectList(onOpenProject: _openProject),
     );
   }
 }
@@ -63,8 +62,8 @@ class _ProjectList extends StatelessWidget {
         children: [
           const _ScreenHeader(
             icon: Icons.account_tree_outlined,
-            title: '项目历史',
-            subtitle: '按项目查看实验版本和报告',
+            title: '实验库',
+            subtitle: '按完整实验查看记录树和报告',
           ),
           const SizedBox(height: 14),
           for (final project in appState.projects) ...[
@@ -151,7 +150,7 @@ class _ProjectCard extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(
-                project.goal,
+                latest.summary,
                 style: const TextStyle(
                   color: AppColors.textPrimary,
                   fontSize: 13,
@@ -162,7 +161,7 @@ class _ProjectCard extends StatelessWidget {
               Row(
                 children: [
                   TagChip(
-                    label: '${project.historyNodes.length} 个节点',
+                    label: '${project.records.length} 次记录',
                     color: AppColors.primary,
                     bgColor: AppColors.primarySoft,
                   ),
@@ -190,10 +189,27 @@ class _ProjectCard extends StatelessWidget {
   }
 }
 
-class _ProjectHistoryDetail extends StatelessWidget {
-  final VoidCallback onBack;
+class ExperimentDetailScreen extends StatefulWidget {
+  const ExperimentDetailScreen({super.key});
 
-  const _ProjectHistoryDetail({required this.onBack});
+  @override
+  State<ExperimentDetailScreen> createState() => _ExperimentDetailScreenState();
+}
+
+class _ExperimentDetailScreenState extends State<ExperimentDetailScreen> {
+  @override
+  void initState() {
+    super.initState();
+    appState.addListener(_onState);
+  }
+
+  void _onState() => setState(() {});
+
+  @override
+  void dispose() {
+    appState.removeListener(_onState);
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -201,17 +217,26 @@ class _ProjectHistoryDetail extends StatelessWidget {
     final selectedNode = appState.selectedHistoryNode;
     final report = appState.selectedHistoryReport;
     final diff = appState.selectedHistoryDiff;
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _DetailHeader(project: project, onBack: onBack),
-          const SizedBox(height: 14),
-          _HistoryTree(project: project, selectedNode: selectedNode),
-          const SizedBox(height: 14),
-          _HistoryReportDetail(node: selectedNode, report: report, diff: diff),
-        ],
+    final idea = appState.selectedHistoryIdea;
+    return SafeArea(
+      key: const ValueKey('experiment-detail-screen'),
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _DetailHeader(project: project),
+            const SizedBox(height: 14),
+            _HistoryTree(project: project, selectedNode: selectedNode),
+            const SizedBox(height: 14),
+            _HistoryReportDetail(
+              node: selectedNode,
+              report: report,
+              diff: diff,
+              idea: idea,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -219,16 +244,15 @@ class _ProjectHistoryDetail extends StatelessWidget {
 
 class _DetailHeader extends StatelessWidget {
   final LabProject project;
-  final VoidCallback onBack;
 
-  const _DetailHeader({required this.project, required this.onBack});
+  const _DetailHeader({required this.project});
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
         IconButton(
-          onPressed: onBack,
+          onPressed: () => Navigator.of(context).pop(),
           icon: const Icon(
             Icons.arrow_back_ios_new,
             color: AppColors.textPrimary,
@@ -251,7 +275,7 @@ class _DetailHeader extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                project.domain,
+                '${project.domain} · ${project.records.length} 次记录',
                 style: const TextStyle(
                   color: AppColors.textSecondary,
                   fontSize: 12,
@@ -285,6 +309,7 @@ class _HistoryTree extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           SingleChildScrollView(
+            key: const ValueKey('history-tree-graph'),
             scrollDirection: Axis.horizontal,
             child: SizedBox(
               width: treeData.totalWidth,
@@ -292,21 +317,19 @@ class _HistoryTree extends StatelessWidget {
               child: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  // Draw connecting lines first (behind nodes).
                   CustomPaint(
                     size: Size(treeData.totalWidth, treeData.totalHeight),
                     painter: _TreeEdgePainter(treeData: treeData),
                   ),
-                  // Draw node cards on top.
-                  for (final pos in treeData.positions.entries)
+                  for (final entry in treeData.positions.entries)
                     Positioned(
-                      left: pos.value.dx - _TreeGraphData.nodeWidth / 2,
-                      top: pos.value.dy - _TreeGraphData.nodeHeight / 2,
+                      left: entry.value.dx - _TreeGraphData.nodeWidth / 2,
+                      top: entry.value.dy - _TreeGraphData.nodeHeight / 2,
                       child: _TreeNodeCard(
-                        key: ValueKey('history-node-${pos.key.id}'),
-                        node: pos.key,
-                        selected: pos.key.id == selectedNode.id,
-                        onTap: () => appState.selectHistoryNode(pos.key.id),
+                        key: ValueKey('history-node-${entry.key.id}'),
+                        node: entry.key,
+                        selected: entry.key.id == selectedNode.id,
+                        onTap: () => appState.selectHistoryNode(entry.key.id),
                       ),
                     ),
                 ],
@@ -319,12 +342,11 @@ class _HistoryTree extends StatelessWidget {
   }
 }
 
-/// Computes 2D positions for a tree graph layout (like a binary tree diagram).
 class _TreeGraphData {
-  static const double nodeWidth = 110.0;
-  static const double nodeHeight = 48.0;
-  static const double horizontalGap = 16.0;
-  static const double verticalGap = 40.0;
+  static const double nodeWidth = 122;
+  static const double nodeHeight = 72;
+  static const double horizontalGap = 18;
+  static const double verticalGap = 36;
 
   final Map<ExperimentHistoryNode, Offset> positions;
   final List<_TreeEdge> edges;
@@ -343,118 +365,123 @@ class _TreeGraphData {
       return const _TreeGraphData(
         positions: {},
         edges: [],
-        totalWidth: 0,
-        totalHeight: 0,
+        totalWidth: nodeWidth,
+        totalHeight: nodeHeight,
       );
     }
 
-    // Build parent -> children map.
     final childrenOf = <String, List<ExperimentHistoryNode>>{};
     final nodeById = <String, ExperimentHistoryNode>{};
     for (final node in nodes) {
       nodeById[node.id] = node;
-      final pid = node.parentId ?? '__root__';
-      childrenOf.putIfAbsent(pid, () => []).add(node);
+      childrenOf.putIfAbsent(node.parentId ?? '__root__', () => []).add(node);
     }
 
-    // Find roots.
-    final nodeIds = nodes.map((n) => n.id).toSet();
+    final nodeIds = nodeById.keys.toSet();
     final roots = nodes
-        .where((n) => n.parentId == null || !nodeIds.contains(n.parentId))
+        .where(
+          (node) => node.parentId == null || !nodeIds.contains(node.parentId),
+        )
         .toList();
-
-    // Assign depth (row) to each node via BFS.
-    final depth = <String, int>{};
-    final queue = <ExperimentHistoryNode>[...roots];
-    for (final r in roots) {
-      depth[r.id] = 0;
+    if (roots.isEmpty) {
+      roots.add(nodes.first);
     }
+
+    final depth = <String, int>{for (final root in roots) root.id: 0};
+    final queue = <ExperimentHistoryNode>[...roots];
     while (queue.isNotEmpty) {
       final current = queue.removeAt(0);
-      final children = childrenOf[current.id] ?? [];
-      for (final child in children) {
+      for (final child in childrenOf[current.id] ?? <ExperimentHistoryNode>[]) {
+        if (depth.containsKey(child.id)) {
+          continue;
+        }
         depth[child.id] = depth[current.id]! + 1;
         queue.add(child);
       }
     }
-
-    // Group nodes by depth level.
-    final maxDepth = depth.values.fold(0, (a, b) => a > b ? a : b);
-    final levels = List.generate(maxDepth + 1, (_) => <ExperimentHistoryNode>[]);
     for (final node in nodes) {
-      levels[depth[node.id]!].add(node);
+      depth.putIfAbsent(node.id, () => 0);
     }
 
-    // Assign x positions: use subtree width to center parents over children.
     final subtreeWidth = <String, double>{};
+    final visiting = <String>{};
 
     double computeSubtreeWidth(ExperimentHistoryNode node) {
-      final children = childrenOf[node.id] ?? [];
+      if (subtreeWidth.containsKey(node.id)) {
+        return subtreeWidth[node.id]!;
+      }
+      if (!visiting.add(node.id)) {
+        return nodeWidth;
+      }
+
+      final children = childrenOf[node.id] ?? <ExperimentHistoryNode>[];
       if (children.isEmpty) {
+        visiting.remove(node.id);
         subtreeWidth[node.id] = nodeWidth;
         return nodeWidth;
       }
-      double total = 0;
+
+      var width = 0.0;
       for (final child in children) {
-        total += computeSubtreeWidth(child);
+        width += computeSubtreeWidth(child);
       }
-      total += (children.length - 1) * horizontalGap;
-      subtreeWidth[node.id] = total;
-      return total;
+      width += (children.length - 1) * horizontalGap;
+      visiting.remove(node.id);
+      subtreeWidth[node.id] = width;
+      return width;
     }
 
-    // Compute subtree widths for all roots.
-    double totalRootsWidth = 0;
+    var totalRootsWidth = 0.0;
     for (final root in roots) {
       totalRootsWidth += computeSubtreeWidth(root);
     }
     totalRootsWidth += (roots.length - 1) * horizontalGap;
 
-    // Position nodes recursively.
     final positions = <ExperimentHistoryNode, Offset>{};
-
     void positionSubtree(ExperimentHistoryNode node, double left, int level) {
-      final w = subtreeWidth[node.id]!;
-      final cx = left + w / 2;
-      final cy = level * (nodeHeight + verticalGap) + nodeHeight / 2 + 8;
-      positions[node] = Offset(cx, cy);
+      final width = subtreeWidth[node.id] ?? nodeWidth;
+      final centerX = left + width / 2;
+      final centerY = level * (nodeHeight + verticalGap) + nodeHeight / 2 + 8;
+      positions[node] = Offset(centerX, centerY);
 
-      final children = childrenOf[node.id] ?? [];
-      double childLeft = left;
-      for (final child in children) {
-        final childW = subtreeWidth[child.id]!;
+      var childLeft = left;
+      for (final child in childrenOf[node.id] ?? <ExperimentHistoryNode>[]) {
+        final childWidth = subtreeWidth[child.id] ?? nodeWidth;
         positionSubtree(child, childLeft, level + 1);
-        childLeft += childW + horizontalGap;
+        childLeft += childWidth + horizontalGap;
       }
     }
 
-    double rootLeft = 0;
+    var rootLeft = 0.0;
     for (final root in roots) {
       positionSubtree(root, rootLeft, 0);
-      rootLeft += subtreeWidth[root.id]! + horizontalGap;
+      rootLeft += (subtreeWidth[root.id] ?? nodeWidth) + horizontalGap;
     }
 
-    // Build edges.
     final edges = <_TreeEdge>[];
     for (final node in nodes) {
-      if (node.parentId != null && nodeById.containsKey(node.parentId)) {
-        final parent = nodeById[node.parentId]!;
-        if (positions.containsKey(parent) && positions.containsKey(node)) {
-          edges.add(_TreeEdge(from: positions[parent]!, to: positions[node]!));
-        }
+      final parent = node.parentId == null ? null : nodeById[node.parentId];
+      if (parent != null &&
+          positions.containsKey(parent) &&
+          positions.containsKey(node)) {
+        edges.add(_TreeEdge(from: positions[parent]!, to: positions[node]!));
       }
     }
 
-    final tw = totalRootsWidth < nodeWidth * 2
+    final maxDepth = depth.values.fold(
+      0,
+      (max, value) => value > max ? value : max,
+    );
+    final totalWidth = totalRootsWidth < nodeWidth * 2
         ? nodeWidth * 2 + horizontalGap
         : totalRootsWidth;
-    final th = (maxDepth + 1) * (nodeHeight + verticalGap) + 16;
+    final totalHeight = (maxDepth + 1) * (nodeHeight + verticalGap) + 16;
 
     return _TreeGraphData(
       positions: positions,
       edges: edges,
-      totalWidth: tw,
-      totalHeight: th,
+      totalWidth: totalWidth,
+      totalHeight: totalHeight,
     );
   }
 }
@@ -462,10 +489,10 @@ class _TreeGraphData {
 class _TreeEdge {
   final Offset from;
   final Offset to;
+
   const _TreeEdge({required this.from, required this.to});
 }
 
-/// Paints curved edges between parent and child nodes.
 class _TreeEdgePainter extends CustomPainter {
   final _TreeGraphData treeData;
 
@@ -475,7 +502,7 @@ class _TreeEdgePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
       ..color = AppColors.primary.withValues(alpha: 0.45)
-      ..strokeWidth = 2.0
+      ..strokeWidth = 1.8
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round;
 
@@ -483,7 +510,6 @@ class _TreeEdgePainter extends CustomPainter {
       final from = edge.from;
       final to = edge.to;
       final midY = (from.dy + to.dy) / 2;
-
       final path = Path()
         ..moveTo(from.dx, from.dy + _TreeGraphData.nodeHeight / 2)
         ..cubicTo(
@@ -496,26 +522,27 @@ class _TreeEdgePainter extends CustomPainter {
         );
       canvas.drawPath(path, paint);
 
-      // Draw a small arrow at the end.
       final arrowTip = Offset(to.dx, to.dy - _TreeGraphData.nodeHeight / 2);
-      final arrowPaint = Paint()
-        ..color = AppColors.primary.withValues(alpha: 0.6)
-        ..style = PaintingStyle.fill;
       final arrowPath = Path()
         ..moveTo(arrowTip.dx, arrowTip.dy)
         ..lineTo(arrowTip.dx - 4, arrowTip.dy - 7)
         ..lineTo(arrowTip.dx + 4, arrowTip.dy - 7)
         ..close();
-      canvas.drawPath(arrowPath, arrowPaint);
+      canvas.drawPath(
+        arrowPath,
+        Paint()
+          ..color = AppColors.primary.withValues(alpha: 0.6)
+          ..style = PaintingStyle.fill,
+      );
     }
   }
 
   @override
-  bool shouldRepaint(covariant _TreeEdgePainter oldDelegate) =>
-      treeData != oldDelegate.treeData;
+  bool shouldRepaint(covariant _TreeEdgePainter oldDelegate) {
+    return treeData != oldDelegate.treeData;
+  }
 }
 
-/// A compact node card for the 2D tree layout.
 class _TreeNodeCard extends StatelessWidget {
   final ExperimentHistoryNode node;
   final bool selected;
@@ -534,23 +561,25 @@ class _TreeNodeCard extends StatelessWidget {
       button: true,
       selected: selected,
       label: node.title,
-      child: GestureDetector(
+      child: InkWell(
+        borderRadius: BorderRadius.circular(AppRadius.card),
         onTap: onTap,
         child: Container(
           width: _TreeGraphData.nodeWidth,
           height: _TreeGraphData.nodeHeight,
-          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+          padding: const EdgeInsets.all(7),
           decoration: BoxDecoration(
             color: selected ? AppColors.primarySoft : Colors.white,
             borderRadius: BorderRadius.circular(AppRadius.card),
             border: Border.all(
               color: selected ? AppColors.primary : AppColors.border,
-              width: selected ? 1.8 : 1.0,
+              width: selected ? 1.8 : 1,
             ),
             boxShadow: [
               BoxShadow(
-                color: (selected ? AppColors.primary : Colors.black)
-                    .withValues(alpha: selected ? 0.12 : 0.05),
+                color: (selected ? AppColors.primary : Colors.black).withValues(
+                  alpha: selected ? 0.12 : 0.05,
+                ),
                 blurRadius: 6,
                 offset: const Offset(0, 2),
               ),
@@ -561,22 +590,33 @@ class _TreeNodeCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
+                '${node.displayName} · ${node.resultLabel}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: selected ? AppColors.primary : AppColors.textSecondary,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
                 node.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   color: selected ? AppColors.primary : AppColors.textPrimary,
-                  fontSize: 10,
+                  fontSize: 11,
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              const SizedBox(height: 3),
+              const SizedBox(height: 2),
               Text(
-                '${node.resultLabel} · ${node.timestamp}',
+                node.timestamp,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  color: selected ? AppColors.primary : AppColors.textTertiary,
+                style: const TextStyle(
+                  color: AppColors.textTertiary,
                   fontSize: 9,
                 ),
               ),
@@ -592,11 +632,13 @@ class _HistoryReportDetail extends StatelessWidget {
   final ExperimentHistoryNode node;
   final StructuredReport report;
   final ExperimentDiff? diff;
+  final GeneratedIdea? idea;
 
   const _HistoryReportDetail({
     required this.node,
     required this.report,
     required this.diff,
+    required this.idea,
   });
 
   @override
@@ -622,6 +664,31 @@ class _HistoryReportDetail extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           _MiniLine(label: '节点', value: node.title),
+          if (idea != null) ...[
+            const SizedBox(height: 12),
+            _GeneratedIdeaPanel(idea: idea!),
+            const SizedBox(height: 12),
+          ],
+          if (report.body.isNotEmpty) ...[
+            Text(
+              report.title,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              report.body,
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 13,
+                height: 1.45,
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
           _MiniLine(label: '目的', value: report.purpose),
           _MiniLine(label: '类型', value: report.experimentType),
           _BulletGroup(
@@ -635,6 +702,64 @@ class _HistoryReportDetail extends StatelessWidget {
           _BulletGroup(
             title: '原始证据',
             items: report.rawEvidence.map((e) => e.title).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _GeneratedIdeaPanel extends StatelessWidget {
+  final GeneratedIdea idea;
+
+  const _GeneratedIdeaPanel({required this.idea});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const ValueKey('history-generated-idea'),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.primarySoft,
+        borderRadius: BorderRadius.circular(AppRadius.card),
+        border: Border.all(color: AppColors.primary.withValues(alpha: 0.18)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.auto_awesome_outlined,
+                color: AppColors.primary,
+                size: 18,
+              ),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  '基于历史对比的科研 idea',
+                  style: TextStyle(
+                    color: AppColors.primary,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+              ),
+              TagChip(
+                label: idea.title,
+                color: AppColors.primary,
+                bgColor: Colors.white,
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            idea.body,
+            style: const TextStyle(
+              color: AppColors.textPrimary,
+              fontSize: 13,
+              height: 1.45,
+            ),
           ),
         ],
       ),
@@ -818,4 +943,3 @@ class _BulletGroup extends StatelessWidget {
     );
   }
 }
-

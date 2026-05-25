@@ -2,33 +2,26 @@ import 'package:flutter/material.dart';
 import '../theme.dart';
 import '../state/app_state.dart';
 import '../widgets/section_card.dart';
-import '../widgets/wave_decoration.dart';
 
 const _domains = ['有机化学', '神经调控 / 脑电', '细胞培养', '材料合成', '设备性能测试', '药物刺激实验'];
 
 class StartExperimentScreen extends StatefulWidget {
-  final VoidCallback? onGoToRecording;
-  const StartExperimentScreen({super.key, this.onGoToRecording});
+  final VoidCallback? onConfirmStart;
+  const StartExperimentScreen({super.key, this.onConfirmStart});
 
   @override
   State<StartExperimentScreen> createState() => _StartExperimentScreenState();
 }
 
-class _StartExperimentScreenState extends State<StartExperimentScreen>
-    with SingleTickerProviderStateMixin {
+class _StartExperimentScreenState extends State<StartExperimentScreen> {
   final _titleCtrl = TextEditingController();
   final _goalCtrl = TextEditingController();
-  late final AnimationController _pulseCtrl;
 
   @override
   void initState() {
     super.initState();
     _titleCtrl.text = appState.title;
     _goalCtrl.text = appState.goal;
-    _pulseCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1300),
-    )..repeat(reverse: true);
     appState.addListener(_onState);
   }
 
@@ -37,7 +30,6 @@ class _StartExperimentScreenState extends State<StartExperimentScreen>
   @override
   void dispose() {
     appState.removeListener(_onState);
-    _pulseCtrl.dispose();
     _titleCtrl.dispose();
     _goalCtrl.dispose();
     super.dispose();
@@ -102,79 +94,74 @@ class _StartExperimentScreenState extends State<StartExperimentScreen>
     );
   }
 
-  void _onMicTap() {
-    if (appState.isRecording) {
-      appState.stopRecording();
-      _toast('已暂停录音');
-    } else {
-      appState.startRecording();
-      _toast('正在录音…');
-      widget.onGoToRecording?.call();
+  void _onConfirmStart() {
+    if (appState.title.trim().isEmpty) {
+      _toast('请先填写实验标题');
+      return;
     }
+    appState.startRecordingSession();
+    widget.onConfirmStart?.call();
   }
 
   @override
   Widget build(BuildContext context) {
-    final recording = appState.isRecording;
     return SafeArea(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildHeader(),
-            const SizedBox(height: 18),
-            SectionCard(
+      child: Column(
+        children: [
+          Expanded(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  _LabeledInput(
-                    label: '实验标题',
-                    controller: _titleCtrl,
-                    hint: '如：硫酸酯化反应条件优化',
-                    maxLength: 30,
-                  ),
+                  _buildHeader(),
                   const SizedBox(height: 18),
-                  _LabeledInput(
-                    label: '实验目标',
-                    controller: _goalCtrl,
-                    hint: '如：提高酯化反应产率',
-                    maxLength: 30,
-                  ),
-                  const SizedBox(height: 18),
-                  Row(
-                    children: [
-                      const Text(
-                        '所属领域',
-                        style: TextStyle(
-                          color: AppColors.textPrimary,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
+                  SectionCard(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _LabeledInput(
+                          label: '实验标题',
+                          controller: _titleCtrl,
+                          hint: '如：硫酸酯化反应条件优化',
+                          maxLength: 30,
                         ),
-                      ),
-                      const Spacer(),
-                      _DomainSelector(
-                        value: appState.domain,
-                        onTap: _pickDomain,
-                      ),
-                    ],
+                        const SizedBox(height: 18),
+                        _LabeledInput(
+                          label: '实验目标',
+                          controller: _goalCtrl,
+                          hint: '如：提高酯化反应产率',
+                          maxLength: 30,
+                        ),
+                        const SizedBox(height: 18),
+                        Row(
+                          children: [
+                            const Text(
+                              '所属领域',
+                              style: TextStyle(
+                                color: AppColors.textPrimary,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            const Spacer(),
+                            _DomainSelector(
+                              value: appState.domain,
+                              onTap: _pickDomain,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
+                  const SizedBox(height: 18),
+                  _buildDraftCard(),
                 ],
               ),
             ),
-            const SizedBox(height: 28),
-            _buildMicArea(recording),
-            const SizedBox(height: 18),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 250),
-              child: recording
-                  ? _buildGoToRecordingHint()
-                  : const SizedBox(height: 0),
-            ),
-            const SizedBox(height: 14),
-            _buildDraftCard(),
-          ],
-        ),
+          ),
+          _buildConfirmBar(),
+        ],
       ),
     );
   }
@@ -256,8 +243,8 @@ class _StartExperimentScreenState extends State<StartExperimentScreen>
               ),
               _SettingRow(
                 icon: Icons.mic_none_outlined,
-                title: '录音模式',
-                value: appState.continuousMode ? '持续监听' : '按住说话',
+                title: '录音段落',
+                value: '手动开始/停止',
               ),
               _SettingRow(
                 icon: Icons.lock_outline,
@@ -271,150 +258,30 @@ class _StartExperimentScreenState extends State<StartExperimentScreen>
     );
   }
 
-  Widget _buildMicArea(bool recording) {
-    return SizedBox(
-      height: 220,
-      child: Stack(
-        alignment: Alignment.center,
-        children: [
-          if (recording) ...[
-            Positioned(
-              left: 0,
-              child: AnimatedWaveBars(
-                barCount: 12,
-                maxHeight: 40,
-                color: AppColors.primary.withValues(alpha: 0.65),
-                seed: 4,
-                active: true,
-              ),
-            ),
-            Positioned(
-              right: 0,
-              child: AnimatedWaveBars(
-                barCount: 12,
-                maxHeight: 40,
-                color: AppColors.primary.withValues(alpha: 0.65),
-                seed: 9,
-                active: true,
-              ),
-            ),
-          ],
-          Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              AnimatedBuilder(
-                animation: _pulseCtrl,
-                builder: (_, child) {
-                  final scale = recording ? 1.0 + _pulseCtrl.value * 0.05 : 1.0;
-                  final ringAlpha = recording
-                      ? 0.18 + _pulseCtrl.value * 0.18
-                      : 0.0;
-                  return Transform.scale(
-                    scale: scale,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppColors.primary.withValues(
-                              alpha: ringAlpha,
-                            ),
-                            blurRadius: 30,
-                            spreadRadius: 14,
-                          ),
-                        ],
-                      ),
-                      child: child,
-                    ),
-                  );
-                },
-                child: Semantics(
-                  button: true,
-                  label: recording ? '停止记录' : '开始记录',
-                  child: InkWell(
-                    key: const ValueKey('start-recording-button'),
-                    customBorder: const CircleBorder(),
-                    onTap: _onMicTap,
-                    child: Container(
-                      width: 116,
-                      height: 116,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: LinearGradient(
-                          colors: recording
-                              ? const [Color(0xFFFB7185), AppColors.danger]
-                              : const [Color(0xFF2DD4BF), AppColors.primary],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        ),
-                        boxShadow: [
-                          BoxShadow(
-                            color:
-                                (recording
-                                        ? AppColors.danger
-                                        : AppColors.primary)
-                                    .withValues(alpha: 0.35),
-                            blurRadius: 26,
-                            spreadRadius: 2,
-                            offset: const Offset(0, 6),
-                          ),
-                        ],
-                      ),
-                      child: Icon(
-                        recording ? Icons.stop_rounded : Icons.mic,
-                        color: Colors.white,
-                        size: recording ? 46 : 50,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 22),
-              Text(
-                recording ? '正在记录 · 点击停止' : '开始记录',
-                style: TextStyle(
-                  color: recording ? AppColors.danger : AppColors.textSecondary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ],
-          ),
-        ],
+  Widget _buildConfirmBar() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 18),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: AppColors.border, width: 0.5)),
       ),
-    );
-  }
-
-  Widget _buildGoToRecordingHint() {
-    return Semantics(
-      button: true,
-      label: '查看实时转写',
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadius.pill),
-        onTap: widget.onGoToRecording,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          decoration: BoxDecoration(
-            color: AppColors.primarySoft,
-            borderRadius: BorderRadius.circular(AppRadius.pill),
-            border: Border.all(color: AppColors.primaryLight, width: 0.8),
+      child: SizedBox(
+        height: 50,
+        child: ElevatedButton.icon(
+          key: const ValueKey('confirm-start-button'),
+          onPressed: _onConfirmStart,
+          icon: const Icon(Icons.arrow_forward_rounded, size: 18),
+          label: const Text(
+            '确定 · 进入实时记录',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
           ),
-          child: const Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.graphic_eq, color: AppColors.primary, size: 16),
-              SizedBox(width: 6),
-              Text(
-                '查看实时转写',
-                style: TextStyle(
-                  color: AppColors.primary,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              SizedBox(width: 4),
-              Icon(Icons.arrow_forward, color: AppColors.primary, size: 14),
-            ],
+          style: ElevatedButton.styleFrom(
+            backgroundColor: AppColors.primary,
+            foregroundColor: Colors.white,
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppRadius.card),
+            ),
           ),
         ),
       ),
@@ -473,10 +340,15 @@ class _StartExperimentScreenState extends State<StartExperimentScreen>
                 ),
               ),
               const SizedBox(width: 10),
-              const TagChip(
-                label: '已保存',
-                color: AppColors.success,
-                bgColor: AppColors.successBg,
+              Flexible(
+                child: FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: const TagChip(
+                    label: '已保存',
+                    color: AppColors.success,
+                    bgColor: AppColors.successBg,
+                  ),
+                ),
               ),
               const SizedBox(width: 6),
               const Icon(

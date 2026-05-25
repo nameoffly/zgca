@@ -38,6 +38,27 @@ void main() {
     expect(report.nextSuggestions, isNotEmpty);
   });
 
+  test('data sample records are stored as concise narrative reports', () {
+    final service = LabWorkflowService();
+    final projects = service.createDemoProjects();
+    final eegProject = projects.firstWhere(
+      (project) => project.id == 'proj-eeg',
+    );
+
+    expect(eegProject.historyNodes, hasLength(6));
+    final firstReport = eegProject.historyNodes.first.report!;
+    expect(firstReport.title, 'H001 高负荷认知任务下的协同刺激效果评估');
+    expect(firstReport.body, contains('一、实验概况'));
+    expect(firstReport.body, contains('5 Hz视听觉协同刺激后'));
+    expect(firstReport.body, isNot(contains('本报告内容根据')));
+
+    final controlNode = eegProject.historyNodes.firstWhere(
+      (node) => node.id == 'eeg-h006',
+    );
+    expect(controlNode.parentId, 'eeg-v1');
+    expect(controlNode.report!.body, contains('Sham假刺激'));
+  });
+
   test('version diff exposes changed variables and result differences', () {
     final service = LabWorkflowService();
     final previous = service.createPreviousDemoExperiment();

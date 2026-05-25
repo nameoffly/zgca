@@ -108,6 +108,12 @@ class ExperimentHistoryNode {
   final String summary;
   final String timestamp;
   final String resultLabel;
+  final int versionNumber;
+  final StructuredReport? report;
+  final ExperimentDiff? diff;
+  final List<TranscriptEntry> transcript;
+  final List<Evidence> evidence;
+  final GeneratedIdea? idea;
 
   const ExperimentHistoryNode({
     required this.id,
@@ -117,7 +123,17 @@ class ExperimentHistoryNode {
     required this.summary,
     required this.timestamp,
     required this.resultLabel,
+    this.versionNumber = 1,
+    this.report,
+    this.diff,
+    this.transcript = const [],
+    this.evidence = const [],
+    this.idea,
   });
+
+  String get displayName => 'v$versionNumber';
+  String get createdAt => timestamp;
+  String get archivedAt => timestamp;
 }
 
 class LabProject {
@@ -138,9 +154,17 @@ class LabProject {
     required this.defaultNodeId,
     required this.historyNodes,
   });
+
+  String get name => title;
+  List<ExperimentHistoryNode> get records => List.unmodifiable(historyNodes);
 }
 
+typedef ExperimentProject = LabProject;
+typedef ExperimentRecordNode = ExperimentHistoryNode;
+
 class StructuredReport {
+  final String title;
+  final String body;
   final String purpose;
   final String experimentType;
   final List<String> plannedConditions;
@@ -152,6 +176,8 @@ class StructuredReport {
   final List<String> nextSuggestions;
 
   const StructuredReport({
+    this.title = '结构化报告',
+    this.body = '',
     required this.purpose,
     required this.experimentType,
     required this.plannedConditions,
@@ -211,4 +237,16 @@ class ResearchInsight {
       adopted: adopted ?? this.adopted,
     );
   }
+}
+
+class GeneratedIdea {
+  final String id;
+  final String title;
+  final String body;
+
+  const GeneratedIdea({
+    required this.id,
+    required this.title,
+    required this.body,
+  });
 }

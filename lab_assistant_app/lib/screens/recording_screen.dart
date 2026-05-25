@@ -79,49 +79,6 @@ class _RecordingScreenState extends State<RecordingScreen> {
     if (picked != null) appState.setLanguage(picked);
   }
 
-  void _openSafetySheet(String kind) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.white,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (_) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 18, 20, 24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(
-                    Icons.shield_outlined,
-                    color: AppColors.warning,
-                    size: 22,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '$kind · 浓硫酸',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 14),
-              const _SafetyItem(title: '危险等级', value: '强腐蚀 / 强氧化剂'),
-              const _SafetyItem(title: '佩戴防护', value: '护目镜 · 耐酸手套 · 实验服 · 通风橱'),
-              const _SafetyItem(title: '溅出处理', value: '立即用大量水冲洗 ≥ 15 分钟，必要时就医'),
-              const _SafetyItem(title: 'SOP', value: '将浓硫酸缓慢倒入水中（先水后酸），切忌反向'),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
   void _openSessionList() {
     showModalBottomSheet(
       context: context,
@@ -161,12 +118,10 @@ class _RecordingScreenState extends State<RecordingScreen> {
           children: [
             _buildHeader(),
             const SizedBox(height: 14),
-            _buildWarning(),
-            const SizedBox(height: 14),
             _buildTranscriptCard(),
             const SizedBox(height: 18),
-            _buildModeButtons(),
-            const SizedBox(height: 20),
+            _buildRecordSegmentButton(),
+            const SizedBox(height: 12),
             _buildFinishButton(),
           ],
         ),
@@ -207,89 +162,6 @@ class _RecordingScreenState extends State<RecordingScreen> {
             ),
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _buildWarning() {
-    return Semantics(
-      button: true,
-      label: '打开浓硫酸安全提示',
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        onTap: () => _openSafetySheet('安全提示'),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            color: AppColors.warningBg,
-            borderRadius: BorderRadius.circular(AppRadius.card),
-            border: Border.all(color: const Color(0xFFFED7AA), width: 0.6),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 26,
-                height: 26,
-                decoration: BoxDecoration(
-                  color: AppColors.warning,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                alignment: Alignment.center,
-                child: const Icon(
-                  Icons.priority_high,
-                  color: Colors.white,
-                  size: 18,
-                ),
-              ),
-              const SizedBox(width: 10),
-              const Text(
-                '警告：浓硫酸滴加',
-                style: TextStyle(
-                  color: Color(0xFF92400E),
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const Spacer(),
-              InkWell(
-                borderRadius: BorderRadius.circular(AppRadius.chip),
-                onTap: () => _openSafetySheet('SDS'),
-                child: _smallPill('SDS'),
-              ),
-              const SizedBox(width: 6),
-              InkWell(
-                borderRadius: BorderRadius.circular(AppRadius.chip),
-                onTap: () => _openSafetySheet('SOP'),
-                child: _smallPill('SOP'),
-              ),
-              const SizedBox(width: 4),
-              const Icon(
-                Icons.chevron_right,
-                color: Color(0xFFB45309),
-                size: 18,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _smallPill(String label) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(AppRadius.chip),
-        border: Border.all(color: const Color(0xFFFCD9A8), width: 0.8),
-      ),
-      child: Text(
-        label,
-        style: const TextStyle(
-          color: Color(0xFFB45309),
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-        ),
       ),
     );
   }
@@ -380,7 +252,7 @@ class _RecordingScreenState extends State<RecordingScreen> {
             alignment: Alignment.centerLeft,
             child: OutlinedButton.icon(
               onPressed: () {
-                appState.flagEntry(1);
+                appState.flagEntry(entries.isEmpty ? 0 : entries.length - 1);
                 _toast('已标记当前步骤');
               },
               icon: const Icon(
@@ -509,70 +381,24 @@ class _RecordingScreenState extends State<RecordingScreen> {
     );
   }
 
-  Widget _buildModeButtons() {
-    final cont = appState.continuousMode;
-    return Row(
-      children: [
-        Expanded(
-          child: _modeButton(
-            icon: Icons.mic_none_outlined,
-            label: '持续',
-            active: cont,
-            onTap: () => appState.setContinuousMode(true),
-          ),
+  Widget _buildRecordSegmentButton() {
+    final active = appState.isRecording;
+    return SizedBox(
+      height: 54,
+      child: ElevatedButton.icon(
+        key: const ValueKey('segment-record-button'),
+        onPressed: appState.toggleRecordingSegment,
+        icon: Icon(active ? Icons.stop_rounded : Icons.mic_rounded, size: 20),
+        label: Text(
+          active ? '停止本段录音' : '开始录音',
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
         ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _modeButton(
-            icon: Icons.touch_app_outlined,
-            label: '按住',
-            active: !cont,
-            onTap: () => appState.setContinuousMode(false),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _modeButton({
-    required IconData icon,
-    required String label,
-    required bool active,
-    required VoidCallback onTap,
-  }) {
-    final color = active ? AppColors.primary : AppColors.textSecondary;
-    return Semantics(
-      button: true,
-      selected: active,
-      label: label,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(AppRadius.card),
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          height: 52,
-          decoration: BoxDecoration(
-            color: active ? AppColors.primarySoft : Colors.white,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: active ? AppColors.danger : AppColors.primary,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(AppRadius.card),
-            border: Border.all(
-              color: active ? AppColors.primaryLight : AppColors.border,
-              width: 0.8,
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, color: color, size: 20),
-              const SizedBox(width: 8),
-              Text(
-                label,
-                style: TextStyle(
-                  color: color,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
           ),
         ),
       ),
@@ -596,7 +422,7 @@ class _RecordingScreenState extends State<RecordingScreen> {
           ),
         ),
         label: const Text(
-          '结束',
+          '结束记录',
           style: TextStyle(
             color: Colors.white,
             fontSize: 16,
@@ -678,46 +504,6 @@ class _EvidenceRow extends StatelessWidget {
                   ),
                 ),
               ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SafetyItem extends StatelessWidget {
-  final String title;
-  final String value;
-  const _SafetyItem({required this.title, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 70,
-            child: Text(
-              title,
-              style: const TextStyle(
-                color: AppColors.textSecondary,
-                fontSize: 13,
-              ),
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              value,
-              style: const TextStyle(
-                color: AppColors.textPrimary,
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                height: 1.45,
-              ),
             ),
           ),
         ],

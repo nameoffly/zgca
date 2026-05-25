@@ -23,6 +23,11 @@ class AppState extends ChangeNotifier {
   bool _isRecording = false;
   bool get isRecording => _isRecording;
 
+  bool _isRecordSessionActive = false;
+  bool get isRecordSessionActive => _isRecordSessionActive;
+
+  int _recordingSegmentIndex = 0;
+
   late Experiment _previousExperiment;
   late Experiment _currentExperiment;
   Experiment get currentExperiment => _currentExperiment;
@@ -49,7 +54,10 @@ class AppState extends ChangeNotifier {
       );
 
   StructuredReport get selectedHistoryReport =>
+      selectedHistoryNode.report ??
       _workflowService.structureReport(selectedHistoryNode.experiment);
+
+  GeneratedIdea? get selectedHistoryIdea => selectedHistoryNode.idea;
 
   ExperimentHistoryNode? get selectedHistoryParent {
     final parentId = selectedHistoryNode.parentId;
@@ -65,6 +73,9 @@ class AppState extends ChangeNotifier {
   }
 
   ExperimentDiff? get selectedHistoryDiff {
+    if (selectedHistoryNode.diff != null) {
+      return selectedHistoryNode.diff;
+    }
     final parent = selectedHistoryParent;
     if (parent == null) {
       return null;
@@ -108,14 +119,50 @@ class AppState extends ChangeNotifier {
   List<Evidence> get evidence => List.unmodifiable(_currentExperiment.evidence);
 
   void toggleRecording() {
-    if (_isRecording) {
-      stopRecording();
-    } else {
-      startRecording();
-    }
+    toggleRecordingSegment();
   }
 
   void startRecording() {
+    startRecordingSegment();
+  }
+
+  void startRecordingSession() {
+    _isRecordSessionActive = true;
+    _isRecording = false;
+    _recordingSegmentIndex = 0;
+    _report = null;
+    _versionDiff = null;
+    _insights = [];
+    _currentExperiment = _workflowService
+        .createCurrentDemoExperiment(
+          title: _title,
+          goal: _goal,
+          domain: _domain,
+        )
+        .copyWith(
+          id: 'exp-current-${DateTime.now().microsecondsSinceEpoch}',
+          status: ExperimentStatus.recording,
+          transcript: const <TranscriptEntry>[],
+          evidence: const <Evidence>[],
+        );
+    notifyListeners();
+  }
+
+  void toggleRecordingSegment() {
+    if (_isRecording) {
+      stopRecordingSegment();
+    } else {
+      startRecordingSegment();
+    }
+  }
+
+  void startRecordingSegment() {
+    if (!_isRecordSessionActive) {
+      startRecordingSession();
+    }
+    if (_isRecording) {
+      return;
+    }
     _isRecording = true;
     _currentExperiment = _currentExperiment.copyWith(
       title: _title,
@@ -127,14 +174,24 @@ class AppState extends ChangeNotifier {
   }
 
   void stopRecording() {
-    if (_isRecording) {
-      _isRecording = false;
-      notifyListeners();
+    stopRecordingSegment();
+  }
+
+  void stopRecordingSegment() {
+    if (!_isRecording) {
+      return;
     }
+    _appendMockRecordingSegment();
+    _isRecording = false;
+    notifyListeners();
   }
 
   void finishRecording() {
+    if (_isRecording) {
+      _appendMockRecordingSegment();
+    }
     _isRecording = false;
+    _isRecordSessionActive = false;
     _currentExperiment = _currentExperiment.copyWith(
       title: _title,
       goal: _goal,
@@ -146,11 +203,7 @@ class AppState extends ChangeNotifier {
       previous: _previousExperiment,
       current: _currentExperiment,
     );
-    _insights = _workflowService.generateInsights(
-      experiment: _currentExperiment,
-      report: _report!,
-      diff: _versionDiff!,
-    );
+    _insights = [];
     notifyListeners();
   }
 
@@ -183,6 +236,11 @@ class AppState extends ChangeNotifier {
   }
 
   void flagEntry(int idx) {
+    if (_currentExperiment.transcript.isEmpty ||
+        idx < 0 ||
+        idx >= _currentExperiment.transcript.length) {
+      return;
+    }
     final updated = [..._currentExperiment.transcript];
     final entry = updated[idx];
     updated[idx] = entry.copyWith(flagged: !entry.flagged);
@@ -204,6 +262,106 @@ class AppState extends ChangeNotifier {
         insight.id == id ? insight.copyWith(adopted: true) : insight,
     ];
     notifyListeners();
+  }
+
+  void archiveCurrentRecord() {
+    if (_report == null) {
+      finishRecording();
+    }
+
+    final completed = _currentExperiment.copyWith(
+      status: ExperimentStatus.completed,
+    );
+    final projectIndex = _projects.indexWhere(
+      (project) => project.domain == completed.domain,
+    );
+    final existingProject = projectIndex >= 0 ? _projects[projectIndex] : null;
+    final nodeCount = existingProject?.historyNodes.length ?? 0;
+    final node = ExperimentHistoryNode(
+      id: 'record-${DateTime.now().microsecondsSinceEpoch}',
+      parentId: existingProject?.defaultNodeId,
+      experiment: completed,
+      title: 'v${nodeCount + 1} ${completed.title}',
+      summary: _report!.processObservations.isEmpty
+          ? completed.goal
+          : _report!.processObservations.first,
+      timestamp: '刚刚',
+      resultLabel: completed.resultLabel,
+      versionNumber: nodeCount + 1,
+      report: _report,
+      diff: _versionDiff,
+      transcript: completed.transcript,
+      evidence: completed.evidence,
+    );
+
+    if (existingProject == null) {
+      final project = LabProject(
+        id: 'proj-${DateTime.now().microsecondsSinceEpoch}',
+        title: completed.title.trim().isEmpty ? '未命名实验' : completed.title,
+        domain: completed.domain,
+        goal: completed.goal,
+        updatedAt: '刚刚',
+        defaultNodeId: node.id,
+        historyNodes: [node],
+      );
+      _projects = [project, ..._projects];
+      _selectedProjectId = project.id;
+    } else {
+      final updatedProject = LabProject(
+        id: existingProject.id,
+        title: existingProject.title,
+        domain: existingProject.domain,
+        goal: existingProject.goal,
+        updatedAt: '刚刚',
+        defaultNodeId: node.id,
+        historyNodes: [...existingProject.historyNodes, node],
+      );
+      _projects = [
+        for (int i = 0; i < _projects.length; i++)
+          i == projectIndex ? updatedProject : _projects[i],
+      ];
+      _selectedProjectId = updatedProject.id;
+    }
+    _selectedHistoryNodeId = node.id;
+    _previousExperiment = completed;
+    _currentExperiment = _workflowService.createCurrentDemoExperiment(
+      title: _title,
+      goal: _goal,
+      domain: _domain,
+    );
+    _report = null;
+    _versionDiff = null;
+    _insights = [];
+    _isRecording = false;
+    _isRecordSessionActive = false;
+    notifyListeners();
+  }
+
+  void _appendMockRecordingSegment() {
+    _recordingSegmentIndex += 1;
+    final segment = _recordingSegmentIndex;
+    final second = (segment * 12).toString().padLeft(2, '0');
+    final evidenceId = 'ev-segment-$segment';
+    final entry = TranscriptEntry(
+      '00:00:$second',
+      '第 $segment 段记录：记录本轮实验条件、现象变化和关键观察。',
+      id: 'tr-segment-$segment',
+      evidenceIds: [evidenceId],
+      flagged: segment == 1,
+    );
+    final evidence = Evidence(
+      id: evidenceId,
+      type: EvidenceType.voice,
+      title: '第 $segment 段语音记录',
+      detail: 'Mock 转写片段，后续可替换为真实 STT 返回内容。',
+      timestamp: entry.time,
+      source: '录音',
+    );
+    _currentExperiment = _currentExperiment.copyWith(
+      transcript: [..._currentExperiment.transcript, entry],
+      evidence: [..._currentExperiment.evidence, evidence],
+      status: ExperimentStatus.recording,
+    );
   }
 
   void selectProject(String id) {

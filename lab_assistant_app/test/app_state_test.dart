@@ -14,17 +14,31 @@ void main() {
     expect(state.domain, '神经调控 / 脑电');
   });
 
-  test('recording lifecycle creates report diff and insights', () {
+  test('recording session only creates report when the full record ends', () {
     final state = AppState();
 
-    state.startRecording();
+    state.startRecordingSession();
+    expect(state.isRecordSessionActive, isTrue);
+    expect(state.isRecording, isFalse);
+    expect(state.report, isNull);
+
+    state.toggleRecordingSegment();
     expect(state.isRecording, isTrue);
+    expect(state.report, isNull);
+
+    state.toggleRecordingSegment();
+    expect(state.isRecording, isFalse);
+    expect(state.transcript.last.text, startsWith('第 1 段记录'));
+    expect(state.transcript.last.evidenceIds, isNotEmpty);
+    expect(state.evidence.last.title, contains('第 1 段'));
+    expect(state.report, isNull);
 
     state.finishRecording();
+    expect(state.isRecordSessionActive, isFalse);
     expect(state.isRecording, isFalse);
     expect(state.report, isNotNull);
     expect(state.versionDiff, isNotNull);
-    expect(state.insights, hasLength(greaterThanOrEqualTo(3)));
+    expect(state.insights, isEmpty);
   });
 
   test('interactive actions update observable state', () {
@@ -36,15 +50,6 @@ void main() {
     state.finishRecording();
     state.exportReport();
     expect(state.exportedReportCount, 1);
-
-    final firstInsightId = state.insights.first.id;
-    state.adoptInsight(firstInsightId);
-    expect(
-      state.insights
-          .firstWhere((insight) => insight.id == firstInsightId)
-          .adopted,
-      isTrue,
-    );
   });
 
   test('project history initializes with selectable demo projects', () {
@@ -86,6 +91,19 @@ void main() {
     expect(state.selectedHistoryDiff, isNotNull);
   });
 
+  test('selected history node exposes generated idea only when present', () {
+    final state = AppState();
+
+    state.selectProject('proj-eeg');
+    state.selectHistoryNode('eeg-v1');
+    expect(state.selectedHistoryIdea, isNull);
+
+    state.selectHistoryNode('eeg-v3');
+    expect(state.selectedHistoryIdea, isNotNull);
+    expect(state.selectedHistoryIdea!.title, isNotEmpty);
+    expect(state.selectedHistoryIdea!.body, contains('历史现象'));
+  });
+
   test('project history parent references resolve inside each project', () {
     final state = AppState();
 
@@ -99,5 +117,48 @@ void main() {
         }
       }
     }
+  });
+
+  test('archiving adds records under an experiment project tree', () {
+    final state = AppState();
+    final projectBefore = state.projects.firstWhere(
+      (project) => project.id == 'proj-eeg',
+    );
+    final beforeCount = projectBefore.records.length;
+
+    state.setTitle('脑电疲劳调控项目');
+    state.setGoal('记录一次新的疲劳干预实验');
+    state.setDomain(projectBefore.domain);
+    state.startRecordingSession();
+    state.toggleRecordingSegment();
+    state.toggleRecordingSegment();
+    state.finishRecording();
+    state.archiveCurrentRecord();
+
+    final projectAfter = state.projects.firstWhere(
+      (project) => project.id == 'proj-eeg',
+    );
+    expect(projectAfter.records, hasLength(beforeCount + 1));
+    expect(projectAfter.records.last.parentId, projectBefore.defaultNodeId);
+    expect(projectAfter.records.last.report, isNotNull);
+    expect(projectAfter.records.last.diff, isNotNull);
+    expect(projectAfter.records.last.transcript, isNotEmpty);
+    expect(projectAfter.records.last.evidence, isNotEmpty);
+    expect(state.selectedProject.id, projectAfter.id);
+    expect(state.selectedHistoryNode.id, projectAfter.records.last.id);
+  });
+
+  test('finishing a record auto-closes an active segment before reporting', () {
+    final state = AppState();
+
+    state.startRecordingSession();
+    state.toggleRecordingSegment();
+    state.finishRecording();
+
+    expect(state.isRecording, isFalse);
+    expect(state.isRecordSessionActive, isFalse);
+    expect(state.transcript, hasLength(1));
+    expect(state.report, isNotNull);
+    expect(state.report!.actualOperations.single, startsWith('第 1 段记录'));
   });
 }

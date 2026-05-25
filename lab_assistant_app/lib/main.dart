@@ -3,8 +3,8 @@ import 'package:flutter/material.dart';
 import 'screens/ideas_screen.dart';
 import 'screens/project_history_screen.dart';
 import 'screens/recording_screen.dart';
+import 'screens/splash_screen.dart';
 import 'screens/start_experiment_screen.dart';
-import 'state/app_state.dart';
 import 'theme.dart';
 
 void main() => runApp(const LabAssistantApp());
@@ -18,7 +18,39 @@ class LabAssistantApp extends StatelessWidget {
       title: 'AI 实验助手',
       debugShowCheckedModeBanner: false,
       theme: buildAppTheme(),
-      home: const RootShell(),
+      home: const AppEntry(),
+    );
+  }
+}
+
+class AppEntry extends StatefulWidget {
+  const AppEntry({super.key});
+
+  @override
+  State<AppEntry> createState() => _AppEntryState();
+}
+
+class _AppEntryState extends State<AppEntry> {
+  bool _entered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 450),
+      switchInCurve: Curves.easeOutCubic,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, animation) {
+        return FadeTransition(
+          opacity: animation,
+          child: child,
+        );
+      },
+      child: _entered
+          ? const RootShell(key: ValueKey('root'))
+          : SplashScreen(
+              key: const ValueKey('splash'),
+              onEnter: () => setState(() => _entered = true),
+            ),
     );
   }
 }
@@ -32,45 +64,61 @@ class RootShell extends StatefulWidget {
 
 class _RootShellState extends State<RootShell> {
   int _index = 0;
-  late final PageController _pageCtrl = PageController(initialPage: _index);
 
-  @override
-  void initState() {
-    super.initState();
-    appState.addListener(_syncWorkflowPage);
+  void _goto(int i) => setState(() => _index = i);
+
+  Future<void> _enterRecordingFlow() async {
+    final nav = Navigator.of(context);
+    await nav.push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (recordingCtx) => Scaffold(
+          backgroundColor: AppColors.bg,
+          body: RecordingScreen(
+            onFinish: () {
+              Navigator.of(recordingCtx).pushReplacement(
+                MaterialPageRoute(
+                  fullscreenDialog: true,
+                  builder: (summaryCtx) => Scaffold(
+                    backgroundColor: AppColors.bg,
+                    body: StructuredReportScreen(
+                      onSaved: () {
+                        Navigator.of(summaryCtx).pop();
+                        _onArchived();
+                      },
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
   }
 
-  void _syncWorkflowPage() {
-    if (appState.isRecording && _index == 0) {
-      _goto(1);
-    }
-  }
-
-  void _goto(int i) {
-    setState(() => _index = i);
-    if (_pageCtrl.hasClients) {
-      _pageCtrl.jumpToPage(i);
-    }
-  }
-
-  @override
-  void dispose() {
-    appState.removeListener(_syncWorkflowPage);
-    _pageCtrl.dispose();
-    super.dispose();
+  void _onArchived() {
+    if (!mounted) return;
+    setState(() => _index = 1);
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('已保存到报告历史'),
+        duration: Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        backgroundColor: AppColors.textPrimary,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.bg,
-      body: PageView(
-        controller: _pageCtrl,
-        onPageChanged: (i) => setState(() => _index = i),
+      body: IndexedStack(
+        index: _index,
         children: [
-          StartExperimentScreen(onGoToRecording: () => _goto(1)),
-          RecordingScreen(onFinish: () => _goto(2)),
-          const IdeasScreen(),
+          StartExperimentScreen(onConfirmStart: _enterRecordingFlow),
           const ProjectHistoryScreen(),
         ],
       ),
@@ -87,12 +135,10 @@ class _RootShellState extends State<RootShell> {
               mainAxisAlignment: MainAxisAlignment.spaceAround,
               children: [
                 _navItem(0, Icons.science_outlined, '开始'),
-                _navItem(1, Icons.graphic_eq, '记录'),
-                _navItem(2, Icons.lightbulb_outline, '整理'),
                 _navItem(
-                  3,
+                  1,
                   Icons.account_tree_outlined,
-                  '项目',
+                  '报告历史',
                   key: const ValueKey('nav-projects'),
                 ),
               ],
@@ -110,28 +156,24 @@ class _RootShellState extends State<RootShell> {
       child: Semantics(
         button: true,
         selected: active,
-        label: '$label $label',
+        label: label,
         child: InkWell(
           key: key,
           onTap: () => _goto(i),
-          child: SizedBox(
-            height: 60,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, color: color, size: 22),
-                const SizedBox(height: 3),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: color,
-                    fontSize: 11,
-                    fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-                  ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, color: color, size: 22),
+              const SizedBox(height: 3),
+              Text(
+                label,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 11,
+                  fontWeight: active ? FontWeight.w600 : FontWeight.w400,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
