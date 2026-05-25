@@ -79,6 +79,10 @@ void main() {
     expect(find.byKey(const ValueKey('history-tree')), findsOneWidget);
     expect(find.byKey(const ValueKey('history-report-detail')), findsOneWidget);
 
+    await tester.ensureVisible(
+      find.byKey(const ValueKey('history-node-eeg-v3')),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
     await tester.tap(find.byKey(const ValueKey('history-node-eeg-v3')));
     await tester.pump(const Duration(milliseconds: 350));
 
