@@ -10,6 +10,9 @@ class AppState extends ChangeNotifier {
     : _workflowService = workflowService ?? LabWorkflowService() {
     _previousExperiment = _workflowService.createPreviousDemoExperiment();
     _currentExperiment = _workflowService.createCurrentDemoExperiment();
+    _projects = _workflowService.createDemoProjects();
+    _selectedProjectId = _projects.first.id;
+    _selectedHistoryNodeId = _projects.first.defaultNodeId;
     _title = _currentExperiment.title;
     _goal = _currentExperiment.goal;
     _domain = _currentExperiment.domain;
@@ -24,6 +27,53 @@ class AppState extends ChangeNotifier {
   late Experiment _currentExperiment;
   Experiment get currentExperiment => _currentExperiment;
   Experiment get previousExperiment => _previousExperiment;
+
+  late List<LabProject> _projects;
+  List<LabProject> get projects => List.unmodifiable(_projects);
+
+  late String _selectedProjectId;
+  String get selectedProjectId => _selectedProjectId;
+
+  late String _selectedHistoryNodeId;
+  String get selectedHistoryNodeId => _selectedHistoryNodeId;
+
+  LabProject get selectedProject => _projects.firstWhere(
+    (project) => project.id == _selectedProjectId,
+    orElse: () => _projects.first,
+  );
+
+  ExperimentHistoryNode get selectedHistoryNode =>
+      selectedProject.historyNodes.firstWhere(
+        (node) => node.id == _selectedHistoryNodeId,
+        orElse: () => selectedProject.historyNodes.first,
+      );
+
+  StructuredReport get selectedHistoryReport =>
+      _workflowService.structureReport(selectedHistoryNode.experiment);
+
+  ExperimentHistoryNode? get selectedHistoryParent {
+    final parentId = selectedHistoryNode.parentId;
+    if (parentId == null) {
+      return null;
+    }
+    for (final node in selectedProject.historyNodes) {
+      if (node.id == parentId) {
+        return node;
+      }
+    }
+    return null;
+  }
+
+  ExperimentDiff? get selectedHistoryDiff {
+    final parent = selectedHistoryParent;
+    if (parent == null) {
+      return null;
+    }
+    return _workflowService.compareVersions(
+      previous: parent.experiment,
+      current: selectedHistoryNode.experiment,
+    );
+  }
 
   late String _title;
   String get title => _title;
@@ -153,6 +203,25 @@ class AppState extends ChangeNotifier {
       for (final insight in _insights)
         insight.id == id ? insight.copyWith(adopted: true) : insight,
     ];
+    notifyListeners();
+  }
+
+  void selectProject(String id) {
+    final project = _projects.firstWhere(
+      (project) => project.id == id,
+      orElse: () => selectedProject,
+    );
+    _selectedProjectId = project.id;
+    _selectedHistoryNodeId = project.defaultNodeId;
+    notifyListeners();
+  }
+
+  void selectHistoryNode(String id) {
+    final hasNode = selectedProject.historyNodes.any((node) => node.id == id);
+    if (!hasNode) {
+      return;
+    }
+    _selectedHistoryNodeId = id;
     notifyListeners();
   }
 }

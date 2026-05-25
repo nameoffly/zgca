@@ -100,6 +100,46 @@ class Experiment {
   }
 }
 
+class ExperimentHistoryNode {
+  final String id;
+  final String? parentId;
+  final Experiment experiment;
+  final String title;
+  final String summary;
+  final String timestamp;
+  final String resultLabel;
+
+  const ExperimentHistoryNode({
+    required this.id,
+    required this.parentId,
+    required this.experiment,
+    required this.title,
+    required this.summary,
+    required this.timestamp,
+    required this.resultLabel,
+  });
+}
+
+class LabProject {
+  final String id;
+  final String title;
+  final String domain;
+  final String goal;
+  final String updatedAt;
+  final String defaultNodeId;
+  final List<ExperimentHistoryNode> historyNodes;
+
+  const LabProject({
+    required this.id,
+    required this.title,
+    required this.domain,
+    required this.goal,
+    required this.updatedAt,
+    required this.defaultNodeId,
+    required this.historyNodes,
+  });
+}
+
 class StructuredReport {
   final String purpose;
   final String experimentType;

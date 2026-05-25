@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
-import 'theme.dart';
-import 'screens/start_experiment_screen.dart';
-import 'screens/recording_screen.dart';
+
 import 'screens/ideas_screen.dart';
+import 'screens/project_history_screen.dart';
+import 'screens/recording_screen.dart';
+import 'screens/start_experiment_screen.dart';
 import 'state/app_state.dart';
+import 'theme.dart';
 
 void main() => runApp(const LabAssistantApp());
 
@@ -69,6 +71,7 @@ class _RootShellState extends State<RootShell> {
           StartExperimentScreen(onGoToRecording: () => _goto(1)),
           RecordingScreen(onFinish: () => _goto(2)),
           const IdeasScreen(),
+          const ProjectHistoryScreen(),
         ],
       ),
       bottomNavigationBar: Container(
@@ -86,6 +89,12 @@ class _RootShellState extends State<RootShell> {
                 _navItem(0, Icons.science_outlined, '开始'),
                 _navItem(1, Icons.graphic_eq, '记录'),
                 _navItem(2, Icons.lightbulb_outline, '整理'),
+                _navItem(
+                  3,
+                  Icons.account_tree_outlined,
+                  '项目',
+                  key: const ValueKey('nav-projects'),
+                ),
               ],
             ),
           ),
@@ -94,7 +103,7 @@ class _RootShellState extends State<RootShell> {
     );
   }
 
-  Widget _navItem(int i, IconData icon, String label) {
+  Widget _navItem(int i, IconData icon, String label, {Key? key}) {
     final active = _index == i;
     final color = active ? AppColors.primary : AppColors.textTertiary;
     return Expanded(
@@ -103,6 +112,7 @@ class _RootShellState extends State<RootShell> {
         selected: active,
         label: label,
         child: InkWell(
+          key: key,
           onTap: () => _goto(i),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,

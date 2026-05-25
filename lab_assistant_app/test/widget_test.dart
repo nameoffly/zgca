@@ -58,4 +58,31 @@ void main() {
     await tester.pump(const Duration(milliseconds: 350));
     expect(find.text('已采纳'), findsWidgets);
   });
+
+  testWidgets('Project history tab opens projects tree and node report', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const LabAssistantApp());
+
+    await tester.tap(find.byKey(const ValueKey('nav-projects')));
+    await tester.pump(const Duration(milliseconds: 350));
+
+    expect(
+      find.byKey(const ValueKey('project-history-screen')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const ValueKey('project-card-proj-eeg')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('project-card-proj-eeg')));
+    await tester.pump(const Duration(milliseconds: 350));
+
+    expect(find.byKey(const ValueKey('history-tree')), findsOneWidget);
+    expect(find.byKey(const ValueKey('history-report-detail')), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('history-node-eeg-v3')));
+    await tester.pump(const Duration(milliseconds: 350));
+
+    expect(appState.selectedHistoryNode.id, 'eeg-v3');
+    expect(find.textContaining('v3'), findsWidgets);
+  });
 }
