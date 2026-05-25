@@ -121,6 +121,26 @@ class LabWorkflowService {
             timestamp: '计划中',
             resultLabel: '待验证',
           ),
+          ExperimentHistoryNode(
+            id: 'eeg-alt',
+            parentId: 'eeg-v2',
+            experiment: _historyExperiment(
+              id: 'exp-eeg-alt',
+              title: 'EEG alpha band exploration',
+              goal: '探索 alpha 频段刺激对注意力的影响',
+              domain: '神经调控 / 脑电',
+              resultLabel: '探索',
+              transcriptTexts: const [
+                '从 v2 分支出来，尝试 alpha 频段刺激。',
+                '初步结果显示注意力指标有变化，需要更多数据。',
+              ],
+              evidencePrefix: 'eeg-alt',
+            ),
+            title: 'alpha 频段探索',
+            summary: '从 v2 分支，探索 alpha 刺激对注意力的影响',
+            timestamp: '5/22 14:00',
+            resultLabel: '探索',
+          ),
         ],
       ),
       LabProject(

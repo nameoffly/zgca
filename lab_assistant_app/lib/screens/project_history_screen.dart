@@ -273,6 +273,7 @@ class _HistoryTree extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final treeData = _TreeGraphData.build(project.historyNodes);
     return SectionCard(
       key: const ValueKey('history-tree'),
       child: Column(
@@ -283,121 +284,303 @@ class _HistoryTree extends StatelessWidget {
             title: '实验历史树',
           ),
           const SizedBox(height: 14),
-          for (final node in project.historyNodes)
-            _HistoryNodeTile(
-              node: node,
-              depth: _nodeDepth(project, node),
-              selected: node.id == selectedNode.id,
-              onTap: () => appState.selectHistoryNode(node.id),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SizedBox(
+              width: treeData.totalWidth,
+              height: treeData.totalHeight,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  // Draw connecting lines first (behind nodes).
+                  CustomPaint(
+                    size: Size(treeData.totalWidth, treeData.totalHeight),
+                    painter: _TreeEdgePainter(treeData: treeData),
+                  ),
+                  // Draw node cards on top.
+                  for (final pos in treeData.positions.entries)
+                    Positioned(
+                      left: pos.value.dx - _TreeGraphData.nodeWidth / 2,
+                      top: pos.value.dy - _TreeGraphData.nodeHeight / 2,
+                      child: _TreeNodeCard(
+                        key: ValueKey('history-node-${pos.key.id}'),
+                        node: pos.key,
+                        selected: pos.key.id == selectedNode.id,
+                        onTap: () => appState.selectHistoryNode(pos.key.id),
+                      ),
+                    ),
+                ],
+              ),
             ),
+          ),
         ],
       ),
     );
   }
 }
 
-class _HistoryNodeTile extends StatelessWidget {
+/// Computes 2D positions for a tree graph layout (like a binary tree diagram).
+class _TreeGraphData {
+  static const double nodeWidth = 110.0;
+  static const double nodeHeight = 48.0;
+  static const double horizontalGap = 16.0;
+  static const double verticalGap = 40.0;
+
+  final Map<ExperimentHistoryNode, Offset> positions;
+  final List<_TreeEdge> edges;
+  final double totalWidth;
+  final double totalHeight;
+
+  const _TreeGraphData({
+    required this.positions,
+    required this.edges,
+    required this.totalWidth,
+    required this.totalHeight,
+  });
+
+  static _TreeGraphData build(List<ExperimentHistoryNode> nodes) {
+    if (nodes.isEmpty) {
+      return const _TreeGraphData(
+        positions: {},
+        edges: [],
+        totalWidth: 0,
+        totalHeight: 0,
+      );
+    }
+
+    // Build parent -> children map.
+    final childrenOf = <String, List<ExperimentHistoryNode>>{};
+    final nodeById = <String, ExperimentHistoryNode>{};
+    for (final node in nodes) {
+      nodeById[node.id] = node;
+      final pid = node.parentId ?? '__root__';
+      childrenOf.putIfAbsent(pid, () => []).add(node);
+    }
+
+    // Find roots.
+    final nodeIds = nodes.map((n) => n.id).toSet();
+    final roots = nodes
+        .where((n) => n.parentId == null || !nodeIds.contains(n.parentId))
+        .toList();
+
+    // Assign depth (row) to each node via BFS.
+    final depth = <String, int>{};
+    final queue = <ExperimentHistoryNode>[...roots];
+    for (final r in roots) {
+      depth[r.id] = 0;
+    }
+    while (queue.isNotEmpty) {
+      final current = queue.removeAt(0);
+      final children = childrenOf[current.id] ?? [];
+      for (final child in children) {
+        depth[child.id] = depth[current.id]! + 1;
+        queue.add(child);
+      }
+    }
+
+    // Group nodes by depth level.
+    final maxDepth = depth.values.fold(0, (a, b) => a > b ? a : b);
+    final levels = List.generate(maxDepth + 1, (_) => <ExperimentHistoryNode>[]);
+    for (final node in nodes) {
+      levels[depth[node.id]!].add(node);
+    }
+
+    // Assign x positions: use subtree width to center parents over children.
+    final subtreeWidth = <String, double>{};
+
+    double computeSubtreeWidth(ExperimentHistoryNode node) {
+      final children = childrenOf[node.id] ?? [];
+      if (children.isEmpty) {
+        subtreeWidth[node.id] = nodeWidth;
+        return nodeWidth;
+      }
+      double total = 0;
+      for (final child in children) {
+        total += computeSubtreeWidth(child);
+      }
+      total += (children.length - 1) * horizontalGap;
+      subtreeWidth[node.id] = total;
+      return total;
+    }
+
+    // Compute subtree widths for all roots.
+    double totalRootsWidth = 0;
+    for (final root in roots) {
+      totalRootsWidth += computeSubtreeWidth(root);
+    }
+    totalRootsWidth += (roots.length - 1) * horizontalGap;
+
+    // Position nodes recursively.
+    final positions = <ExperimentHistoryNode, Offset>{};
+
+    void positionSubtree(ExperimentHistoryNode node, double left, int level) {
+      final w = subtreeWidth[node.id]!;
+      final cx = left + w / 2;
+      final cy = level * (nodeHeight + verticalGap) + nodeHeight / 2 + 8;
+      positions[node] = Offset(cx, cy);
+
+      final children = childrenOf[node.id] ?? [];
+      double childLeft = left;
+      for (final child in children) {
+        final childW = subtreeWidth[child.id]!;
+        positionSubtree(child, childLeft, level + 1);
+        childLeft += childW + horizontalGap;
+      }
+    }
+
+    double rootLeft = 0;
+    for (final root in roots) {
+      positionSubtree(root, rootLeft, 0);
+      rootLeft += subtreeWidth[root.id]! + horizontalGap;
+    }
+
+    // Build edges.
+    final edges = <_TreeEdge>[];
+    for (final node in nodes) {
+      if (node.parentId != null && nodeById.containsKey(node.parentId)) {
+        final parent = nodeById[node.parentId]!;
+        if (positions.containsKey(parent) && positions.containsKey(node)) {
+          edges.add(_TreeEdge(from: positions[parent]!, to: positions[node]!));
+        }
+      }
+    }
+
+    final tw = totalRootsWidth < nodeWidth * 2
+        ? nodeWidth * 2 + horizontalGap
+        : totalRootsWidth;
+    final th = (maxDepth + 1) * (nodeHeight + verticalGap) + 16;
+
+    return _TreeGraphData(
+      positions: positions,
+      edges: edges,
+      totalWidth: tw,
+      totalHeight: th,
+    );
+  }
+}
+
+class _TreeEdge {
+  final Offset from;
+  final Offset to;
+  const _TreeEdge({required this.from, required this.to});
+}
+
+/// Paints curved edges between parent and child nodes.
+class _TreeEdgePainter extends CustomPainter {
+  final _TreeGraphData treeData;
+
+  const _TreeEdgePainter({required this.treeData});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = AppColors.primary.withValues(alpha: 0.45)
+      ..strokeWidth = 2.0
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    for (final edge in treeData.edges) {
+      final from = edge.from;
+      final to = edge.to;
+      final midY = (from.dy + to.dy) / 2;
+
+      final path = Path()
+        ..moveTo(from.dx, from.dy + _TreeGraphData.nodeHeight / 2)
+        ..cubicTo(
+          from.dx,
+          midY,
+          to.dx,
+          midY,
+          to.dx,
+          to.dy - _TreeGraphData.nodeHeight / 2,
+        );
+      canvas.drawPath(path, paint);
+
+      // Draw a small arrow at the end.
+      final arrowTip = Offset(to.dx, to.dy - _TreeGraphData.nodeHeight / 2);
+      final arrowPaint = Paint()
+        ..color = AppColors.primary.withValues(alpha: 0.6)
+        ..style = PaintingStyle.fill;
+      final arrowPath = Path()
+        ..moveTo(arrowTip.dx, arrowTip.dy)
+        ..lineTo(arrowTip.dx - 4, arrowTip.dy - 7)
+        ..lineTo(arrowTip.dx + 4, arrowTip.dy - 7)
+        ..close();
+      canvas.drawPath(arrowPath, arrowPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _TreeEdgePainter oldDelegate) =>
+      treeData != oldDelegate.treeData;
+}
+
+/// A compact node card for the 2D tree layout.
+class _TreeNodeCard extends StatelessWidget {
   final ExperimentHistoryNode node;
-  final int depth;
   final bool selected;
   final VoidCallback onTap;
 
-  const _HistoryNodeTile({
+  const _TreeNodeCard({
+    super.key,
     required this.node,
-    required this.depth,
     required this.selected,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
-    final color = selected ? AppColors.primary : AppColors.textPrimary;
-    return Padding(
-      padding: EdgeInsets.only(left: depth * 18.0, bottom: 10),
-      child: Semantics(
-        button: true,
-        selected: selected,
-        label: node.title,
-        child: InkWell(
-          key: ValueKey('history-node-${node.id}'),
-          borderRadius: BorderRadius.circular(AppRadius.card),
-          onTap: onTap,
-          child: Container(
-            constraints: const BoxConstraints(minHeight: 58),
-            padding: const EdgeInsets.fromLTRB(8, 8, 10, 8),
-            decoration: BoxDecoration(
-              color: selected ? AppColors.primarySoft : const Color(0xFFF9FAFB),
-              borderRadius: BorderRadius.circular(AppRadius.card),
-              border: Border.all(
-                color: selected ? AppColors.primaryLight : AppColors.border,
-                width: 0.8,
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: node.title,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: _TreeGraphData.nodeWidth,
+          height: _TreeGraphData.nodeHeight,
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+          decoration: BoxDecoration(
+            color: selected ? AppColors.primarySoft : Colors.white,
+            borderRadius: BorderRadius.circular(AppRadius.card),
+            border: Border.all(
+              color: selected ? AppColors.primary : AppColors.border,
+              width: selected ? 1.8 : 1.0,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: (selected ? AppColors.primary : Colors.black)
+                    .withValues(alpha: selected ? 0.12 : 0.05),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
               ),
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                SizedBox(
-                  width: 24,
-                  height: 42,
-                  child: CustomPaint(
-                    painter: _NodeMarkerPainter(
-                      hasParent: node.parentId != null,
-                      selected: selected,
-                    ),
-                  ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                node.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: selected ? AppColors.primary : AppColors.textPrimary,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
                 ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              node.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: color,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ),
-                          TagChip(
-                            label: node.resultLabel,
-                            color: selected
-                                ? AppColors.primary
-                                : AppColors.textSecondary,
-                            bgColor: Colors.white,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        node.summary,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: AppColors.textSecondary,
-                          fontSize: 12,
-                          height: 1.3,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        node.timestamp,
-                        style: const TextStyle(
-                          color: AppColors.textTertiary,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                '${node.resultLabel} · ${node.timestamp}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  color: selected ? AppColors.primary : AppColors.textTertiary,
+                  fontSize: 9,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
@@ -636,74 +819,3 @@ class _BulletGroup extends StatelessWidget {
   }
 }
 
-class _NodeMarkerPainter extends CustomPainter {
-  final bool hasParent;
-  final bool selected;
-
-  const _NodeMarkerPainter({required this.hasParent, required this.selected});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final linePaint = Paint()
-      ..color = AppColors.border
-      ..strokeWidth = 1.4;
-    final center = Offset(size.width / 2, 15);
-
-    if (hasParent) {
-      canvas.drawLine(
-        Offset(center.dx, 0),
-        Offset(center.dx, size.height),
-        linePaint,
-      );
-    } else {
-      canvas.drawLine(
-        Offset(center.dx, center.dy),
-        Offset(center.dx, size.height),
-        linePaint,
-      );
-    }
-
-    final fillPaint = Paint()
-      ..color = selected ? AppColors.primary : Colors.white;
-    final strokePaint = Paint()
-      ..color = selected ? AppColors.primary : AppColors.textTertiary
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2;
-
-    canvas.drawCircle(center, selected ? 6.5 : 5.5, fillPaint);
-    canvas.drawCircle(center, selected ? 6.5 : 5.5, strokePaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant _NodeMarkerPainter oldDelegate) {
-    return hasParent != oldDelegate.hasParent ||
-        selected != oldDelegate.selected;
-  }
-}
-
-int _nodeDepth(LabProject project, ExperimentHistoryNode node) {
-  var depth = 0;
-  var parentId = node.parentId;
-  final seen = <String>{node.id};
-
-  while (parentId != null && !seen.contains(parentId)) {
-    final parent = _findNode(project, parentId);
-    if (parent == null) {
-      break;
-    }
-    depth += 1;
-    seen.add(parent.id);
-    parentId = parent.parentId;
-  }
-
-  return depth;
-}
-
-ExperimentHistoryNode? _findNode(LabProject project, String id) {
-  for (final node in project.historyNodes) {
-    if (node.id == id) {
-      return node;
-    }
-  }
-  return null;
-}
